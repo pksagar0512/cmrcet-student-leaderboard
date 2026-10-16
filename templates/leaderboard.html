@@ -1,0 +1,190 @@
+
+{% extends "base.html" %}
+
+{% block title %}{{ batch.name }} · CMRCET Leaderboard{% endblock %}
+
+{% block content %}
+
+<section class="title compact">
+    <div class="eyebrow">CMRCET · STUDENT PORTAL</div>
+    <h1>{{ batch.name }}</h1>
+    <p>{{ batch.year }} · {{ batch.departments }}</p>
+</section>
+
+<div class="tabs">
+    <a class="tab {% if mode == 'overall' %}active{% endif %}"
+       href="{{ url_for('leaderboard', batch_id=batch.id, mode='overall') }}">
+        Complete batch leaderboard
+    </a>
+
+    <a class="tab {% if mode == 'assessment' %}active{% endif %}"
+       href="{{ url_for('leaderboard', batch_id=batch.id, mode='assessment', assessment_id=assessment_id) }}">
+        Assessment leaderboard
+    </a>
+</div>
+
+{% if mode == 'assessment' %}
+<form class="assessment-select" method="get">
+    <input type="hidden" name="mode" value="assessment">
+
+    <label>
+        Choose assessment
+        <select name="assessment_id" required>
+            {% for a in assessments %}
+            <option value="{{ a.id }}"
+                {% if assessment_id == (a.id|string) %}selected{% endif %}>
+                {{ a.name }}
+            </option>
+            {% endfor %}
+        </select>
+    </label>
+
+    <button class="apply" type="submit">Show results ↗</button>
+</form>
+{% endif %}
+
+<section class="holo grand-holo">
+    <div class="holo-top">
+        <span class="tiny-label">✦ TOP PERFORMERS</span>
+        <span class="class-label">
+            {{ selected.name if selected else 'COMPLETE BATCH RANKING' }}
+        </span>
+    </div>
+
+    {% if announcements %}
+    <div class="announcement-ticker">
+        <div class="ticker-track {% if announcements[0].direction == 'ltr' %}ticker-ltr{% endif %}">
+            {% for a in announcements %}
+            <span>✦ {{ a.message }}</span>
+            {% endfor %}
+
+            {% for a in announcements %}
+            <span>✦ {{ a.message }}</span>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    <div class="podium grand-podium">
+        {% for place, index in [('second', 1), ('first', 0), ('third', 2)] %}
+        <div class="podium-place {{ place }}">
+
+            {% if rows|length > index %}
+                {% set s = rows[index] %}
+
+                <div class="podium-aura"></div>
+
+                <div class="podium-cup">
+                    {% if index == 0 %}🏆
+                    {% elif index == 1 %}🥈
+                    {% else %}🥉
+                    {% endif %}
+                </div>
+
+                <div class="podium-student">{{ s.name }}</div>
+                <div class="podium-roll">{{ s.roll }}</div>
+
+                <div class="podium-score">
+                    {{ '%.2f'|format(s.score) }}{% if mode == 'overall' %}%{% endif %}
+                </div>
+            {% else %}
+                <div class="podium-aura"></div>
+                <div class="podium-cup">🏆</div>
+                <div class="podium-student">Awaiting results</div>
+            {% endif %}
+
+            <div class="podium-base">
+                <span>{{ index + 1 }}</span>
+            </div>
+
+        </div>
+        {% endfor %}
+    </div>
+</section>
+
+<section class="table-panel">
+    <div class="tablehead">
+        <h2>▰ LIVE RANKINGS</h2>
+
+        <input id="search"
+               type="search"
+               placeholder="Search name / roll / email"
+               aria-label="Search leaderboard">
+    </div>
+
+    <div class="scroll">
+        <table id="ranktable">
+            <thead>
+                <tr>
+                    <th>Rank</th>
+                    <th>Roll number</th>
+                    <th>Student name</th>
+                    <th>{% if mode == 'overall' %}Average %{% else %}Score{% endif %}</th>
+                    <th>Accuracy</th>
+                    <th>Time taken</th>
+                    <th>Tab switches</th>
+                </tr>
+            </thead>
+
+            <tbody>
+                {% for s in rows %}
+                <tr data-search="{{ (s.name ~ ' ' ~ s.roll ~ ' ' ~ (s.email or ''))|lower }}">
+                    <td class="rank">
+                        {% if s.rank == 1 %}🥇
+                        {% elif s.rank == 2 %}🥈
+                        {% elif s.rank == 3 %}🥉
+                        {% else %}#{{ s.rank }}
+                        {% endif %}
+                    </td>
+
+                    <td>{{ s.roll }}</td>
+                    <td class="name">{{ s.name }}</td>
+
+                    <td>
+                        <b>{{ '%.2f'|format(s.score) }}{% if mode == 'overall' %}%{% endif %}</b>
+                    </td>
+
+                    <td>
+                        {{ '%.1f'|format(s.accuracy) }}%
+                        <div class="meter">
+                            <i style="width: {{ [[s.accuracy|float, 0]|max, 100]|min }}%"></i>
+                        </div>
+                    </td>
+
+                    <td>{{ s.time }}</td>
+                    <td>{{ s.switches }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    {% if not rows %}
+    <p class="empty">No student results are available for this batch yet.</p>
+    {% endif %}
+</section>
+
+<p class="back">
+    <a href="{{ url_for('home') }}">← Choose another batch</a>
+</p>
+
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+    const search = document.getElementById("search");
+    const rows = document.querySelectorAll(
+        "#ranktable tbody tr[data-search]"
+    );
+
+    if (!search) return;
+
+    search.addEventListener("input", function () {
+        const query = search.value.trim().toLowerCase();
+
+        rows.forEach(function (row) {
+            row.hidden = !(row.dataset.search || "").includes(query);
+        });
+    });
+});
+</script>
+
+{% endblock %}

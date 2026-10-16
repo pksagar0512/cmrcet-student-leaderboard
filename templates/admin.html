@@ -1,0 +1,321 @@
+
+{% extends "base.html" %}
+{% block title %}CMRCET Admin{% endblock %}
+{% block content %}
+
+<section class="title compact">
+    <div class="eyebrow">RESTRICTED · ADMIN CONSOLE</div>
+    <h1>Manage <span>Leaderboards</span></h1>
+    <p>Create batches, import students, publish assessments, and manage announcements.</p>
+</section>
+
+<div class="stats">
+    <div><small>STUDENTS</small><strong>{{ student_count }}</strong></div>
+    <div><small>BATCHES</small><strong>{{ batches|length }}</strong></div>
+    <div><small>ASSESSMENTS</small><strong>{{ assessment_count }}</strong></div>
+</div>
+
+<!-- 01: CREATE BATCH -->
+<section class="panel">
+    <h2>01 · Create a custom batch</h2>
+    <p class="muted">Choose the academic year and departments for this batch.</p>
+
+    <form class="upload" method="post" action="{{ url_for('create_batch') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+        <label class="full">Batch name
+            <input name="name" placeholder="CMRCET 3rd Year CSD Batch" required>
+        </label>
+
+        <label>Academic / student year
+            <input name="year" placeholder="3rd Year" required>
+        </label>
+
+        <div class="dept-picks">
+            <span class="field-title">Departments to include</span>
+            {% for d in ['CSE','ECE','EEE','Mechanical','Civil','CSD','CSM'] %}
+                <label class="check">
+                    <input type="checkbox" name="departments" value="{{ d }}">
+                    {{ d }}
+                </label>
+            {% endfor %}
+        </div>
+
+        <button class="apply full" type="submit">Create batch ↗</button>
+    </form>
+</section>
+
+<!-- 02: IMPORT STUDENTS -->
+<section class="panel">
+    <h2>02 · Upload student master list</h2>
+    <p class="muted">
+        Required columns: Roll Number, Student Name, Department, Year.
+        Email and Division are optional. Department and Year must match the selected batch.
+    </p>
+
+    <form class="upload" method="post"
+          action="{{ url_for('upload_students') }}"
+          enctype="multipart/form-data">
+
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+        <label class="full">Target batch
+            <select name="batch_id" required>
+                {% for b in batches %}
+                    <option value="{{ b.id }}">
+                        {{ b.name }} — {{ b.year }} ({{ b.departments }})
+                    </option>
+                {% endfor %}
+            </select>
+        </label>
+
+        <label class="full">Student master file
+            <input type="file" name="spreadsheet"
+                   accept=".xlsx,.xls,.csv" required>
+        </label>
+
+        <button class="apply full" type="submit"
+                {% if not batches %}disabled{% endif %}>
+            Import student list ↗
+        </button>
+    </form>
+</section>
+
+<!-- 03: UPLOAD RESULTS -->
+<section class="panel">
+    <h2>03 · Upload assessment results</h2>
+    <p class="muted">
+        Students must already belong to the selected batch.
+        Re-uploading an assessment with the same name updates matching results.
+    </p>
+
+    <form class="upload" method="post"
+          action="{{ url_for('upload_results') }}"
+          enctype="multipart/form-data">
+
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+        <label class="full">Target batch
+            <select name="batch_id" required>
+                {% for b in batches %}
+                    <option value="{{ b.id }}">{{ b.name }}</option>
+                {% endfor %}
+            </select>
+        </label>
+
+        <label>Assessment name
+            <input name="assessment_name"
+                   placeholder="DSA Assessment 1" required>
+        </label>
+
+        <label>Maximum score
+            <input name="max_score" type="number"
+                   min="0" step="any" placeholder="100">
+        </label>
+
+        <label class="full">Results spreadsheet
+            <input type="file" name="spreadsheet"
+                   accept=".xlsx,.xls,.csv" required>
+        </label>
+
+        <div class="hint full">
+            Required result columns: Roll Number and Score/Marks.
+            Optional: Name, Accuracy, Time Taken, Tab Switches.
+        </div>
+
+        <button class="apply full" type="submit"
+                {% if not batches %}disabled{% endif %}>
+            Upload results &amp; update ranks ↗
+        </button>
+    </form>
+</section>
+
+<!-- 04: ANNOUNCEMENTS -->
+<section class="panel">
+    <h2>04 · Announcement ticker</h2>
+    <p class="muted">
+        Publish scrolling announcements on the public leaderboard.
+    </p>
+
+    <form class="upload" method="post"
+          action="{{ url_for('save_announcement') }}">
+
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+        <label class="full">Announcement message
+            <input type="text" name="message" maxlength="300"
+                   placeholder="Congratulations to our top performers!"
+                   required>
+        </label>
+
+        <label>Scrolling direction
+            <select name="direction">
+                <option value="rtl">Right to left</option>
+                <option value="ltr">Left to right</option>
+            </select>
+        </label>
+
+        <label class="check">
+            <input type="checkbox" name="active" checked>
+            Publish immediately
+        </label>
+
+        <button class="apply full" type="submit">Save announcement ↗</button>
+    </form>
+
+    <h3>Saved announcements</h3>
+
+    {% if announcements %}
+        <div class="scroll">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Message</th>
+                        <th>Direction</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for a in announcements %}
+                    <tr>
+                        <td>{{ a.message }}</td>
+                        <td>
+                            {% if a.direction == 'ltr' %}
+                                Left to right
+                            {% else %}
+                                Right to left
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if a.active %}Published{% else %}Hidden{% endif %}
+                        </td>
+                        <td>
+                            <div class="action-row">
+                                <form method="post"
+                                      action="{{ url_for('toggle_announcement', announcement_id=a.id) }}">
+                                    <input type="hidden" name="csrf_token"
+                                           value="{{ csrf_token() }}">
+                                    <button class="apply" type="submit">
+                                        {% if a.active %}Hide{% else %}Publish{% endif %}
+                                    </button>
+                                </form>
+
+                                <form method="post"
+                                      action="{{ url_for('delete_announcement', announcement_id=a.id) }}"
+                                      onsubmit="return confirm('Delete this announcement?');">
+                                    <input type="hidden" name="csrf_token"
+                                           value="{{ csrf_token() }}">
+                                    <button class="apply" type="submit">Delete</button>
+                                </form>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    {% else %}
+        <p class="muted">No announcements have been created yet.</p>
+    {% endif %}
+</section>
+
+<!-- 05: DEMO DATA CLEANUP -->
+<section class="panel">
+    <h2>05 · Demo data cleanup</h2>
+    <p class="muted">
+        Remove students whose roll numbers begin with DEMO and assessments
+        whose names contain "demo". This cannot be undone.
+    </p>
+
+    <form method="post" action="{{ url_for('cleanup_demo_data') }}"
+          onsubmit="return confirm('Delete demo students and demo assessments? This cannot be undone.');">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button class="apply" type="submit">Clean up demo data</button>
+    </form>
+</section>
+
+<!-- 06: YOUR BATCHES -->
+<section class="panel">
+    <h2>06 · Your batches</h2>
+
+    {% if batches %}
+        <div class="scroll">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Batch</th>
+                        <th>Year</th>
+                        <th>Departments</th>
+                        <th>Students</th>
+                        <th>Public view</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for b in batches %}
+                    <tr>
+                        <td>{{ b.name }}</td>
+                        <td>{{ b.year }}</td>
+                        <td>{{ b.departments }}</td>
+                        <td>{{ b.student_count }}</td>
+                        <td>
+                            <a class="inline-link"
+                               href="{{ url_for('leaderboard', batch_id=b.id) }}">
+                                Open ↗
+                            </a>
+                        </td>
+                        <td>
+                            <form method="post"
+                                  action="{{ url_for('delete_batch', batch_id=b.id) }}"
+                                  onsubmit="return confirm('PERMANENTLY delete this batch, its students, assessments, and results? This cannot be undone.');">
+
+                                <input type="hidden" name="csrf_token"
+                                       value="{{ csrf_token() }}">
+
+                                <button class="apply" type="submit">
+                                    Delete
+                                </button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    {% else %}
+        <p class="muted">No batches yet.</p>
+    {% endif %}
+</section>
+
+<!-- 07: RECENT ASSESSMENTS -->
+<section class="panel">
+    <h2>07 · Recently published assessments</h2>
+
+    {% if recent %}
+        <div class="scroll">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Batch</th>
+                        <th>Assessment</th>
+                        <th>Uploaded (UTC)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for r in recent %}
+                    <tr>
+                        <td>{{ r.batch_name }}</td>
+                        <td>{{ r.name }}</td>
+                        <td>{{ r.uploaded_at }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    {% else %}
+        <p class="muted">No assessments published yet.</p>
+    {% endif %}
+</section>
+
+{% endblock %}
